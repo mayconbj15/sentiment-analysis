@@ -1,11 +1,17 @@
-import pandas as pd 
+import pandas as pd
 
 from sklearn.feature_extraction.text import CountVectorizer
 
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 
+from sklearn.model_selection import cross_val_predict
+
 from sklearn.naive_bayes import MultinomialNB
+
+from sklearn.pipeline import Pipeline
+
+from sklearn import svm
 
 import nltk
 from nltk.corpus import stopwords
@@ -14,33 +20,41 @@ from nltk.tokenize import TweetTokenizer
 
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 import re
 
-sentiments = ['Positive', 'Negative', 'Neutral']
+sentiments = ['Positive', 'Negative']
 classes = ["OriginalTweet", "Sentiment"]
 
-def train(file_name):
-    df = pd.read_csv(file_name)[classes] 
 
+def train(file_name):
+    df = pd.read_csv(file_name)[classes]
+    # plotDf(df)
     df = filterSentiments(df, sentiments)
-    
+
     print('Distribuição das classes')
     print(df.Sentiment.value_counts())
 
-    #Codificar a base
+    # Codificar a base
     df.Sentiment = codeSet(df)
 
     # Normaliza os index do data frame
     #df = transformDataSet(df)
-    
+
     nltk.download('stopwords')
     stop_words = stopwords.words('english')
+
+    df['OriginalTweet'] = [preProcessing(
+        i, stop_words) for i in df['OriginalTweet']]
+
+    naiveBayesPredict(df)
+    SVMPredict(df)
     
-    df['OriginalTweet'] = [preProcessing(i, stop_words) for i in df['OriginalTweet']]
-  
-    #Vetorizar
+    # Vetorizar
     tweet_tokenizer = TweetTokenizer()
-    vectorizer = CountVectorizer(analyzer="word", tokenizer=tweet_tokenizer.tokenize)
+    vectorizer = CountVectorizer(
+        analyzer="word", tokenizer=tweet_tokenizer.tokenize)
 
     freq_tweets = vectorizer.fit_transform(df.OriginalTweet)
     type(freq_tweets)
@@ -54,17 +68,66 @@ def train(file_name):
 
     test_list = df_test['OriginalTweet'].tolist()
     freq_testes = vectorizer.transform(test_list)
-    
-    
+
     expected = codeSet(df_test).tolist()
     predicted = []
 
-    for t, c in zip (test_list,modelo.predict(freq_testes)):
+    for t, c in zip(test_list, modelo.predict(freq_testes)):
         # t representa o tweet e c a classificação de cada tweet.
-        print(t + ", "+ str(c)) 
+        print(t + ", " + str(c))
         predicted.append(c)
-    
+
     printResult(expected, predicted)
+
+def Metricas(modelo, tweets, classes):
+    result = cross_val_predict(modelo, tweets, classes, cv=10)
+
+    printResult(classes, result)
+
+def naiveBayesPredict(df):
+    pipeline_simples = Pipeline([
+        ('counts', CountVectorizer()),
+        ('classifier', MultinomialNB())
+    ])
+
+    pipeline_simples.fit(df.OriginalTweet, df.Sentiment)
+
+    result = cross_val_predict(pipeline_simples, df.OriginalTweet, df.Sentiment, cv=10)
+     
+    print('Naive Bayes Result')
+    printResult(df.Sentiment.tolist(), result)
+
+def SVMPredict(df):
+    pipeline_svm_simples = Pipeline([
+        ('counts', CountVectorizer()),
+        ('classifier', svm.LinearSVC(random_state=9))
+    ])
+
+    result = pipeline_svm_simples.fit(df.OriginalTweet, df.Sentiment)
+
+    result = cross_val_predict(pipeline_svm_simples, df.OriginalTweet, df.Sentiment, cv=10)
+
+    print('SVM Result')
+    printResult(df.Sentiment.tolist(), result)
+
+
+def plotDf(df):
+    values = df.Sentiment.value_counts()
+    data = {'Positive': values['Positive'], 'Negative': values['Negative'], 'Neutral': values['Neutral'],
+            'Extremely Positive': values['Extremely Positive'], 'Extremely Negative': values['Extremely Negative']}
+
+    courses = list(data.keys())
+    values = list(data.values())
+
+    fig = plt.figure(figsize=(10, 5))
+
+    plt.bar(courses, values, color='maroon',
+            width=0.4)
+
+    plt.xlabel("Classe (Sentimentos)")
+    plt.title("Distribuição das classes")
+    plt.show()
+
 
 def preProcessing(tweet, stop_words):
     tweet = removeStopWords(tweet, stop_words)
@@ -72,47 +135,57 @@ def preProcessing(tweet, stop_words):
 
     return tweet
 
+
 def removeStopWords(attribute, stop_words):
     words = [word for word in attribute.split() if not word in stop_words]
-    
-    return ' '.join(words)      
+
+    return ' '.join(words)
+
 
 def cleanAttribute(attribute):
     attribute = re.sub(r"http\S+", "", attribute)
     attribute = re.sub(r"#\S+", "", attribute)
-    attribute = re.sub(r"@\S+", "", attribute).lower().replace('.','').replace(';','').replace('-','').replace(':','').replace(')','')
+    attribute = re.sub(r"@\S+", "", attribute).lower().replace('.',
+                                                               '').replace(';', '').replace('-', '').replace(':', '').replace(')', '')
 
     return attribute
-    
+
 
 def transformDataSet(df):
     data = []
 
-    for row in df.itertuples():                   
+    for row in df.itertuples():
         data.append([row[1], row[2]])
 
     return pd.DataFrame(np.array(data), columns=['OriginalTweet', 'Sentiment'])
 
+
 def filterSentiments(dataFrame, sentiments):
     return dataFrame[dataFrame['Sentiment'].isin(sentiments)]
 
+
 def codeSet(dataFrame):
-    return dataFrame['Sentiment'].map({'Positive': 0, 'Negative': 1, 'Neutral': 2})
+    return dataFrame['Sentiment'].map({'Positive': 0, 'Negative': 1})
+
 
 def printResult(expected_values, predict_values):
     matrix = confusion_matrix(expected_values, predict_values)
-    print("Matrix de confusão das classes", " ".join(sentiments), '\n', matrix, "\n")
-    
-    metrics = classification_report(expected_values, predict_values, target_names=sentiments)
+    print("Matrix de confusão das classes",
+          " ".join(sentiments), '\n', matrix, "\n")
+
+    metrics = classification_report(
+        expected_values, predict_values, target_names=sentiments)
     print(metrics)
+
+    print('Acurácia do modelo: {}'.format(metrics.accuracy_score(expected_values,predict_values)))
 
 
 if __name__ == "__main__":
     train('Corona_NLP_train.csv')
-    
-    #refactor
+
+    # refactor
     #train_data = makeTrainData('Corona_NLP_train.csv')
-    #train(data)
-    
+    # train(data)
+
     #test_data = makeTestData('')
-    #test()
+    # test()
