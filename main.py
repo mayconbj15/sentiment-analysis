@@ -4,6 +4,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
 
 from sklearn.model_selection import cross_val_predict
 
@@ -28,7 +29,7 @@ sentiments = ['Positive', 'Negative']
 classes = ["OriginalTweet", "Sentiment"]
 
 
-def train(file_name):
+def getData(file_name):
     df = pd.read_csv(file_name)[classes]
     # plotDf(df)
     df = filterSentiments(df, sentiments)
@@ -48,67 +49,28 @@ def train(file_name):
     df['OriginalTweet'] = [preProcessing(
         i, stop_words) for i in df['OriginalTweet']]
 
-    naiveBayesPredict(df)
-    SVMPredict(df)
-    
-    # Vetorizar
-    tweet_tokenizer = TweetTokenizer()
-    vectorizer = CountVectorizer(
-        analyzer="word", tokenizer=tweet_tokenizer.tokenize)
+    return df
 
-    freq_tweets = vectorizer.fit_transform(df.OriginalTweet)
-    type(freq_tweets)
-    print(freq_tweets.shape)
 
-    modelo = MultinomialNB()
-    modelo.fit(freq_tweets, df['Sentiment'])
-
-    df_test = pd.read_csv('Corona_NLP_test.csv')[classes]
-    df_test = filterSentiments(df_test, sentiments)
-
-    test_list = df_test['OriginalTweet'].tolist()
-    freq_testes = vectorizer.transform(test_list)
-
-    expected = codeSet(df_test).tolist()
-    predicted = []
-
-    for t, c in zip(test_list, modelo.predict(freq_testes)):
-        # t representa o tweet e c a classificação de cada tweet.
-        print(t + ", " + str(c))
-        predicted.append(c)
-
-    printResult(expected, predicted)
-
-def Metricas(modelo, tweets, classes):
-    result = cross_val_predict(modelo, tweets, classes, cv=10)
-
-    printResult(classes, result)
-
-def naiveBayesPredict(df):
-    pipeline_simples = Pipeline([
+def naiveBayesClassifier():
+    return Pipeline([
         ('counts', CountVectorizer()),
         ('classifier', MultinomialNB())
     ])
 
-    pipeline_simples.fit(df.OriginalTweet, df.Sentiment)
 
-    result = cross_val_predict(pipeline_simples, df.OriginalTweet, df.Sentiment, cv=10)
-     
-    print('Naive Bayes Result')
-    printResult(df.Sentiment.tolist(), result)
-
-def SVMPredict(df):
-    pipeline_svm_simples = Pipeline([
+def SVMClassifier():
+    return Pipeline([
         ('counts', CountVectorizer()),
         ('classifier', svm.LinearSVC(random_state=9))
     ])
 
-    result = pipeline_svm_simples.fit(df.OriginalTweet, df.Sentiment)
 
-    result = cross_val_predict(pipeline_svm_simples, df.OriginalTweet, df.Sentiment, cv=10)
+def metricas(modelo, tweets, classes):
+    modelo.fit(tweets, classes)
+    result = cross_val_predict(modelo, tweets, classes, cv=10)
 
-    print('SVM Result')
-    printResult(df.Sentiment.tolist(), result)
+    printResult(classes, result)
 
 
 def plotDf(df):
@@ -173,19 +135,18 @@ def printResult(expected_values, predict_values):
     print("Matrix de confusão das classes",
           " ".join(sentiments), '\n', matrix, "\n")
 
-    metrics = classification_report(
-        expected_values, predict_values, target_names=sentiments)
-    print(metrics)
+    print(classification_report(expected_values,
+                                predict_values, target_names=sentiments))
 
-    print('Acurácia do modelo: {}'.format(metrics.accuracy_score(expected_values,predict_values)))
+    print('Acurácia do modelo: {}'.format(
+        accuracy_score(expected_values, predict_values)))
 
 
 if __name__ == "__main__":
-    train('Corona_NLP_train.csv')
+    data = getData('Corona_NLP_train.csv')
 
-    # refactor
-    #train_data = makeTrainData('Corona_NLP_train.csv')
-    # train(data)
+    naiveBayesModel = naiveBayesClassifier()
+    svmModel = SVMClassifier()
 
-    #test_data = makeTestData('')
-    # test()
+    metricas(naiveBayesModel, data.OriginalTweet, data.Sentiment)
+    metricas(svmModel, data.OriginalTweet, data.Sentiment)
