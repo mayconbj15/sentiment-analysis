@@ -25,6 +25,8 @@ import matplotlib.pyplot as plt
 
 import re
 
+import time
+
 sentiments = ['Positive', 'Negative']
 classes = ["OriginalTweet", "Sentiment"]
 
@@ -67,8 +69,13 @@ def SVMClassifier():
 
 
 def metricas(modelo, tweets, classes):
+    start_time = time.time()
+
     modelo.fit(tweets, classes)
     result = cross_val_predict(modelo, tweets, classes, cv=10)
+
+    end_time = time.time()
+    print('Time (miliseconds): ', (end_time - start_time)*1000)
 
     printResult(classes, result)
 
