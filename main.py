@@ -13,11 +13,14 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
 from sklearn import svm
+from sklearn import neural_network
 
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.tokenize import TweetTokenizer
+
+from textblob import TextBlob
 
 import numpy as np
 
@@ -65,6 +68,14 @@ def SVMClassifier():
     return Pipeline([
         ('counts', CountVectorizer()),
         ('classifier', svm.LinearSVC(random_state=9))
+    ])
+
+
+def neuralNetwork():
+    return Pipeline([
+        ('counts', CountVectorizer()),
+        ('classifier', neural_network.MLPRegressor(random_state=1, 
+            learning_rate_init=0.049, activation='logistic',hidden_layer_sizes=3))
     ])
 
 
@@ -134,7 +145,7 @@ def filterSentiments(dataFrame, sentiments):
 
 
 def codeSet(dataFrame):
-    return dataFrame['Sentiment'].map({'Positive': 0, 'Negative': 1})
+    return dataFrame['Sentiment'].map({'Positive': 0, 'Negative': 1, 'Neutral': 2})
 
 
 def printResult(expected_values, predict_values):
@@ -148,12 +159,44 @@ def printResult(expected_values, predict_values):
     print('Acurácia do modelo: {}'.format(
         accuracy_score(expected_values, predict_values)))
 
+def tweet_analysis(tweets):
+    predict_list = []
+    subjectivities = []
+    polarities = []
 
+    for tweet in tweets.OriginalTweet:
+        phrase = TextBlob(tweet)
+
+        if phrase.sentiment.polarity != 0.0 and phrase.sentiment.subjectivity != 0.0:
+            polarities.append(phrase.sentiment.polarity)
+            subjectivities.append(phrase.sentiment.subjectivity)
+
+        #print('Tweet: ' + tweet)
+        #print('Polarity: ' + str(phrase.sentiment.polarity) + ' \ Subjectivity: ' + str(phrase.sentiment.subjectivity))
+        #print('.....................')
+        
+        predict_list.append(get_result(phrase.sentiment.polarity))
+
+    printResult(tweets.Sentiment.tolist(), predict_list)
+
+    return {'polarity':polarities, 'subjectivity':subjectivities}
+
+def get_result(polarity):
+    if polarity >= 0.0:
+        return 1
+    elif polarity < 0.0:
+        return 0
+    elif polarity == 0.0:
+        return 2
+    
 if __name__ == "__main__":
-    data = getData('Corona_NLP_train.csv')
+    data = getData('Corona_NLP_full.csv')
 
+    #tweet_analysis(data)
     naiveBayesModel = naiveBayesClassifier()
     svmModel = SVMClassifier()
+    neural = neuralNetwork()
 
     metricas(naiveBayesModel, data.OriginalTweet, data.Sentiment)
     metricas(svmModel, data.OriginalTweet, data.Sentiment)
+    metricas(neural, data.OriginalTweet, data.Sentiment)
