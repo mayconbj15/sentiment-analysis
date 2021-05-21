@@ -74,7 +74,7 @@ def SVMClassifier():
 def neuralNetwork():
     return Pipeline([
         ('counts', CountVectorizer()),
-        ('classifier', neural_network.MLPRegressor(random_state=1, 
+        ('classifier', neural_network.MLPClassifier(random_state=1, 
             learning_rate_init=0.049, activation='logistic',hidden_layer_sizes=3))
     ])
 
@@ -200,3 +200,4 @@ if __name__ == "__main__":
     metricas(naiveBayesModel, data.OriginalTweet, data.Sentiment)
     metricas(svmModel, data.OriginalTweet, data.Sentiment)
     metricas(neural, data.OriginalTweet, data.Sentiment)
+    print('para')
